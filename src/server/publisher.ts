@@ -53,7 +53,82 @@ io.on('connection', async(socket) => {
   });
 
 
-})
+  // Handle client heartbeat
+  socket.on('heartbeat', async () => {
+    const client  = connectedClients.get(clientId);
+    if (client) {
+      client.lastHeartbeat  = Date.now();
+      connectedClients.set(clientId, client);
+
+      // Send heartbeat acknowledgment
+      socket.emit('heartbeat:ack', { timestamp: Date.now() });
+
+      // Publish heartbeat
+      await publisherService.publishSystemMetrics({
+        clientId
+        , cpuUsage: os.loadavg()[0]
+        , memoryUsage: process.memoryUsage().heapUsed
+        , uptime: process.uptime()
+        , timestamp: Date.now()
+      })
+    }
+  })
+
+  // Handle client disconnection 
+  socket.on('disconnect', async() => {
+    logger.info(`Client disconnected: ${clientId}`);
+    connectedClients.delete(clientId);
+
+    await publisherService.publishConnectionStatus({
+      clientId
+      , status: 'offline'
+      , timestamp: Date.now()
+      , metadata: {
+        reason: 'client_disconnected'
+      }
+    })
+  })
+
+  // Handle client system metrics
+  socket.on('metrics', async (metrics: SystemMetrics) => {
+    await publisherService.publishSystemMetrics({
+      ...metrics
+      , clientId
+      , timestamp: Date.now()
+    });
+  });
+});
+
+// Check for stale connectins
+
+const STALE_CONNTECTION_THRESHOLD  = 60000; // 1 minute
+setInterval(() => {
+  const now     = Date.now();
+
+  connectedClients.forEach(async (client, clientId)=> {
+    if ( now - client.lastHeartbeat  > STALE_CONNTECTION_THRESHOLD) {
+      logger.warn(`Stale connection detected for client: ${clientId}`);
+
+      // Get socket and disconnect it
+      const socket  = io.sockets.sockets.get(client.socketId);
+
+      if (socket) {
+        socket.disconnect(true);
+      }
+
+      connectedClients.delete(clientId);
+
+      await publisherService.publishConnectionStatus({
+        clientId
+        , status: 'offline'
+        , timestamp: now
+        , metadata: {
+          reason: 'stale_connection'
+        }
+      });
+    }
+  });
+}, 30000); // Check for every 30 seconds
 
 // publish client
 app.post('/api/status', async (req, res) => {
@@ -101,9 +176,17 @@ try {
     const { type, message, severity } = req.body;
     
     await publisherService.publishAlert({
-    type,
-    message,
-    severity
+      type,
+      message,
+      severity
+    });
+
+    // Broadcasting alert to all connected clients
+    io.emit('alert', {
+      type
+      , message
+      , severity
+      , timestamp: Date.now()
     });
 
     res.json({ success: true });
@@ -120,6 +203,14 @@ const PORT = process.env.PORT || 3000;
 
 
 process.on('SIGTERM', async () => {
+    // Disconnect all clients
+    io.disconnectSockets();
+
+    // Close socket.io server
+    await new Promise<void>((resolve) =>io.close(() => resolve()));
+
+    // Shutdown publisher service
     await publisherService.shutdown();
+
     process.exit(0);
 });

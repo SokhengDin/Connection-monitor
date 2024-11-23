@@ -31,13 +31,13 @@ async function main() {
     metricsClient.startCollecting((metrics) => {
         socketClient.sendMetrics(metrics);
         logger.debug('Metrics sent:', metrics);
-    }, parseInt(process.env.METRICS_INTERVAL || '30000')); 
+    }, parseInt(process.env.METRICS_INTERVAL || '60000')); 
 
 
     const heartbeatInterval = setInterval(() => {
         socketClient.sendHeartbeat();
         logger.debug('Heartbeat sent');
-    }, parseInt(process.env.HEARTBEAT_INTERVAL || '15000'));
+    }, parseInt(process.env.HEARTBEAT_INTERVAL || '60000'));
 
     process.on('SIGINT', () => {
         logger.info('Shutting down client...');

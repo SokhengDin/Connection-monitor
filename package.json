@@ -9,6 +9,7 @@
         "dev:server": "nodemon src/server/publisher.ts",
         "start:client": "node dist/client/main/main.js",
         "dev:client": "nodemon src/client/main/main.ts",
+        "test:client": "ts-node src/app/test-client.ts",
         "clean": "rimraf dist",
         "prebuild": "npm run clean",
         "build:server": "tsc -p tsconfig.server.json",

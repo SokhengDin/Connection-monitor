@@ -2,17 +2,17 @@
     "name": "connection-monitor",
     "version": "1.0.0",
     "description": "Real-time connection monitoring system with pub/sub",
-    "main": "dist/server/index.js",
+    "main": "dist/server/publisher.js",
     "scripts": {
-        "start:server": "ts-node src/server/publisher.ts",
-        "start:client": "electron .",
-        "dev:server": "nodemon src/server/publisher.ts",
-        "dev:client": "tsc && electron .",
-        "test:client": "ts-node src/test-client.ts",
-        "test:telegram": "ts-node src/test-telegram.ts",
         "build": "tsc",
-        "watch": "tsc -w",
-        "package": "electron-builder"
+        "start:server": "node dist/server/publisher.js",
+        "dev:server": "nodemon src/server/publisher.ts",
+        "start:client": "node dist/client/main/main.js",
+        "dev:client": "nodemon src/client/main/main.ts",
+        "clean": "rimraf dist",
+        "prebuild": "npm run clean",
+        "build:server": "tsc -p tsconfig.server.json",
+        "build:client": "tsc -p tsconfig.client.json"
     },
     "dependencies": {
         "dotenv": "^16.4.1",

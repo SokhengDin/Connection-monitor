@@ -19,6 +19,7 @@ class MainProcess {
     private heartbeatInterval: NodeJS.Timeout | null = null;
     private readonly HEARTBEAT_INTERVAL = parseInt(process.env.HEARTBEAT_INTERVAL || '15000');
     private readonly METRICS_INTERVAL = parseInt(process.env.METRICS_INTERVAL || '30000');
+    private isHeadless: boolean = false;
 
     constructor() {
         this.clientId = process.env.CLIENT_ID || uuidv4();
@@ -33,6 +34,7 @@ class MainProcess {
 
         this.socketClient = new SocketClient(this.clientId, this.metadata);
         this.metricsClient = new MetricsClient();
+        this.isHeadless = process.env.NODE_ENV === 'production';
     }
 
 
@@ -51,13 +53,22 @@ class MainProcess {
     }
 
     async start() {
-        await app.whenReady();
-        this.createWindow();
-        this.setupServices();
+
+        if (this.isHeadless) {
+            this.setupServices();
+        }
+        else {
+            await app.whenReady();
+            this.createWindow();
+            this.setupServices();
+        }
         logger.info(`Starting client: ${this.clientId}`, { metadata: this.metadata });
     }
 
     private createWindow() {
+
+        if (this.isHeadless) return;
+
         this.window = new BrowserWindow({
             width: 800,
             height: 600,

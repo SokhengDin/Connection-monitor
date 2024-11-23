@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import { CHANNELS } from "../constants/channels";
 import { ConnectionStatus, SystemMetrics, ClientMetadata, Alert } from "../types/connection.type";
 import { TelegramService } from "./telegram.service";
+import { DatabaseService } from './database.service';
 import { logger } from "../utils/logger";
 
 interface ConnectedClient {
@@ -20,12 +21,14 @@ export class PublisherService {
     private connected   : boolean = false;
     private clientCheckInterval?: NodeJS.Timeout;
     private connectedClients = new Map<string, ConnectedClient>();
+    private database: DatabaseService;
 
     constructor(
         private readonly redisConfig: { host: string; port: number; password?: string },
         private readonly io         : Server,
         private readonly telegram?  : TelegramService
     ) {
+        this.database       = new DatabaseService();
         this.publisher      = new Redis(redisConfig);
         this.subscriber     = new Redis(redisConfig);
         this.setupRedisListeners();
@@ -125,12 +128,14 @@ export class PublisherService {
         });
     }
 
-    private registerClient(clientId: string, metadata?: ClientMetadata): void {
+    private async registerClient(clientId: string, metadata?: ClientMetadata): Promise<void> {
         this.connectedClients.set(clientId, {
             lastHeartbeat: Date.now(),
             status: 'online',
             metadata
         });
+
+        await this.database.recordConnectionStatus(clientId, 'online', metadata);
 
         this.publishConnectionStatus({
             clientId,
@@ -179,6 +184,14 @@ export class PublisherService {
                 lastSeenAt: new Date(client.lastHeartbeat).toLocaleString()
             }
         };
+
+        // dnb
+        await this.database.recordConnectionStatus(
+            clientId
+            , 'offline'
+            , client.metadata
+            , 'heartbeat_timeout'
+        );
 
         await this.publishAlert({
             type: 'CONNECTION_LOST',
@@ -256,6 +269,7 @@ Status: ${client.status.toUpperCase()}
     private async handleConnectionStatus(status: ConnectionStatus): Promise<void> {
         const client = this.connectedClients.get(status.clientId);
         const metadata = status.metadata;
+        
 
         if (status.status === 'online') {
             this.connectedClients.set(status.clientId, {
@@ -265,17 +279,39 @@ Status: ${client.status.toUpperCase()}
             });
 
             if (!client || client.status === 'offline') {
+
+                const { lastDowntime }  = await this.database.getDowntimeStats(status.clientId);
+
+                const downtimeStr       = lastDowntime 
+                ? `\nLast Downtime: ${Math.floor(lastDowntime / 60)}m ${lastDowntime % 60}s`
+                : '';
+
                 await this.telegram?.sendAlert(`🟢 Client Connected
 <code>
 Client: ${status.clientId}
 Project: ${metadata?.projectName || 'Unknown'}
 Location: ${metadata?.location || 'Unknown'}
 Owner: ${metadata?.owner || 'Unknown'}
-Time: ${new Date().toLocaleString()}
+Time: ${new Date().toLocaleString()}${downtimeStr}
 </code>`, 'info');
+                    
+
+            await this.database.recordConnectionStatus(
+                status.clientId
+                , 'online'
+                , metadata as ClientMetadata
+            )
+
             }
         } else {
             if (client?.status === 'online') {
+                await this.database.recordConnectionStatus(
+                    status.clientId,
+                    'offline',
+                    metadata as ClientMetadata,
+                    status.metadata?.reason
+                );
+
                 const message = `🔴 Client Disconnected
 <code>
 Client: ${status.clientId}
@@ -491,6 +527,7 @@ ${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(al
         this.io.disconnectSockets();
         await this.subscriber.quit();
         await this.publisher.quit();
+        await this.database.shutdown();
         await this.telegram?.shutdown();
         this.connected = false;
         logger.info('Publisher service shut down complete');

@@ -150,27 +150,27 @@ export class PublisherService {
         });
     }
 
-    private startHealthCheck(): void {
-        const CHECK_INTERVAL    = parseInt(process.env.HEALTH_CHECK_INTERVAL || '30000'); // 30 seconds
-        const OFFLINE_THRESHOLD = parseInt(process.env.OFFLINE_THRESHOLD || '60000'); // 1 minute
-        const REPORT_INTERVAL   = parseInt(process.env.REPORT_INTERVAL || '300000'); // 5 minutes
+    // private startHealthCheck(): void {
+    //     const CHECK_INTERVAL    = parseInt(process.env.HEALTH_CHECK_INTERVAL || '30000'); // 30 seconds
+    //     const OFFLINE_THRESHOLD = parseInt(process.env.OFFLINE_THRESHOLD || '60000'); // 1 minute
+    //     const REPORT_INTERVAL   = parseInt(process.env.REPORT_INTERVAL || '300000'); // 5 minutes
 
-        setInterval(async () => {
-            const now = Date.now();
+    //     setInterval(async () => {
+    //         const now = Date.now();
 
-            for (const [clientId, client] of this.connectedClients.entries()) {
-                // Check if client is stale
-                if (client.status === 'online' && now - client.lastHeartbeat > OFFLINE_THRESHOLD) {
-                    await this.handleClientOffline(clientId, client);
-                }
-                if (client.status === 'online' && 
-                    client.metrics && 
-                    now - client.lastHeartbeat < OFFLINE_THRESHOLD) {
-                    await this.sendHealthReport(clientId, client);
-                }
-            }
-        }, CHECK_INTERVAL);
-    }
+    //         for (const [clientId, client] of this.connectedClients.entries()) {
+    //             // Check if client is stale
+    //             if (client.status === 'online' && now - client.lastHeartbeat > OFFLINE_THRESHOLD) {
+    //                 await this.handleClientOffline(clientId, client);
+    //             }
+    //             if (client.status === 'online' && 
+    //                 client.metrics && 
+    //                 now - client.lastHeartbeat < OFFLINE_THRESHOLD) {
+    //                 await this.sendHealthReport(clientId, client);
+    //             }
+    //         }
+    //     }, CHECK_INTERVAL);
+    // }
 
     private async handleClientOffline(clientId: string, client: ConnectedClient): Promise<void> {
         const metadata = {
@@ -244,27 +244,27 @@ export class PublisherService {
     }
 
 
-    private async sendHealthReport(clientId: string, client: ConnectedClient): Promise<void> {
-        if (!client.metrics || !client.metadata) return;
+//     private async sendHealthReport(clientId: string, client: ConnectedClient): Promise<void> {
+//         if (!client.metrics || !client.metadata) return;
 
-        const memoryUsagePercent = (client.metrics.memoryUsage / client.metrics.totalMemory) * 100;
-        const message = `📊 Health Report
-<code>
-Client: ${clientId}
-Project: ${client.metadata.projectName}
-Location: ${client.metadata.location}
+//         const memoryUsagePercent = (client.metrics.memoryUsage / client.metrics.totalMemory) * 100;
+//         const message = `📊 Health Report
+// <code>
+// Client: ${clientId}
+// Project: ${client.metadata.projectName}
+// Location: ${client.metadata.location}
 
-System Metrics:
-- CPU Usage: ${client.metrics.cpuUsage.toFixed(2)}%
-- Memory: ${memoryUsagePercent.toFixed(2)}%
-- Uptime: ${(client.metrics.uptime / 3600).toFixed(2)} hours
-- Last Update: ${new Date(client.metrics.timestamp).toLocaleString()}
+// System Metrics:
+// - CPU Usage: ${client.metrics.cpuUsage.toFixed(2)}%
+// - Memory: ${memoryUsagePercent.toFixed(2)}%
+// - Uptime: ${(client.metrics.uptime / 3600).toFixed(2)} hours
+// - Last Update: ${new Date(client.metrics.timestamp).toLocaleString()}
 
-Status: ${client.status.toUpperCase()}
-</code>`;
+// Status: ${client.status.toUpperCase()}
+// </code>`;
 
-        await this.telegram?.sendAlert(message, 'info');
-    }
+//         await this.telegram?.sendAlert(message, 'info');
+//     }
 
     private async handleConnectionStatus(status: ConnectionStatus): Promise<void> {
         const client = this.connectedClients.get(status.clientId);

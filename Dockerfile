@@ -17,7 +17,6 @@ RUN npm run build:client
 ENV NODE_ENV=production
 ENV HEADLESS=true
 
-
 RUN useradd -r -u 1001 -g root nonroot && \
     chown -R nonroot:root /usr/src/app
 USER nonroot

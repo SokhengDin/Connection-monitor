@@ -505,12 +505,12 @@ ${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(al
             
             if (activeClients.length === 0) {
                 this.telegram?.sendAlert(`⚠️ System Warning
-                    <code>
-                    No active clients connected
-                    Time: ${new Date().toLocaleString()}
-                    Last Known Clients:
-                    ${this.getLastKnownClientsInfo()}
-                    </code>`, 'warning');
+<code>
+No active clients connected
+Time: ${new Date().toLocaleString()}
+Last Known Clients:
+${this.getLastKnownClientsInfo()}
+</code>`, 'warning');
             }
         }, CHECK_INTERVAL)
     }

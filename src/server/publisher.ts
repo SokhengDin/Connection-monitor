@@ -142,12 +142,9 @@ const gracefulShutdown = async () => {
     process.exit(0);
 };
 
-const PORT = parseInt(process.env.PORT || '3035', 10);
-
-httpServer.listen(PORT, '0.0.0.0', () => {
-    logger.info(`Server running on port ${PORT}`);
-}).on('error', (err) => {
-    logger.error(`Failed to start server on port ${PORT}: ${err.message}`);
+const port = parseInt(process.env.PORT || '3000', 10);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server is running on port ${port}`);
 });
 
 process.on('SIGTERM', gracefulShutdown);

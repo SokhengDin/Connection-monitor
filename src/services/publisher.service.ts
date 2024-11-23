@@ -19,6 +19,7 @@ export class PublisherService {
     private subscriber  : Redis;
     private connected   : boolean = false;
     private connectedClients = new Map<string, ConnectedClient>();
+    private clientCheckInterval: NodeJS.Timeout;
 
     constructor(
         private readonly redisConfig: { host: string; port: number; password?: string },
@@ -30,6 +31,7 @@ export class PublisherService {
         this.setupRedisListeners();
         this.setupSocketServer();
         this.startHealthCheck();
+        this.startClientMonitoring();
     }
 
 
@@ -56,12 +58,12 @@ export class PublisherService {
                     case CHANNELS.CONNECTION_STATUS:
                         await this.handleConnectionStatus(data);
                         break;
-                    case CHANNELS.SYSTEM_METRICS:
-                        await this.handleSystemMetrics(data);
-                        break;
-                    case CHANNELS.ALERTS:
-                        await this.handleAlert(data);
-                        break;
+                    // case CHANNELS.SYSTEM_METRICS:
+                    //     await this.handleSystemMetrics(data);
+                    //     break;
+                    // case CHANNELS.ALERTS:
+                    //     await this.handleAlert(data);
+                    //     break;
                 }
             } catch (error) {
                 logger.error('Error handling Redis message:', error);
@@ -253,6 +255,7 @@ Status: ${client.status.toUpperCase()}
 
     private async handleConnectionStatus(status: ConnectionStatus): Promise<void> {
         const client = this.connectedClients.get(status.clientId);
+        const metadata = status.metadata;
 
         if (status.status === 'online') {
             this.connectedClients.set(status.clientId, {
@@ -263,25 +266,27 @@ Status: ${client.status.toUpperCase()}
 
             if (!client || client.status === 'offline') {
                 const message = `🟢 Client Connected
-<code>
-Client ID: ${status.clientId}
-Project: ${status.metadata?.projectName || 'Unknown'}
-Location: ${status.metadata?.location || 'Unknown'}
-Time: ${new Date().toLocaleString()}
-</code>`;
+            <code>
+                Client: ${status.clientId}
+                Project: ${metadata?.projectName || 'Unknown'}
+                Location: ${metadata?.location || 'Unknown'}
+                Owner: ${metadata?.owner || 'Unknown'}
+                Time: ${new Date().toLocaleString()}
+            </code>`;
 
                 await this.telegram?.sendAlert(message, 'info');
             }
         } else {
             if (client?.status === 'online') {
                 const message = `🔴 Client Disconnected
-<code>
-Client ID: ${status.clientId}
-Project: ${client.metadata?.projectName || 'Unknown'}
-Location: ${client.metadata?.location || 'Unknown'}
-Time: ${new Date().toLocaleString()}
-Reason: ${status.metadata?.reason || 'Unknown'}
-</code>`;
+            <code>
+                Client: ${status.clientId}
+                Project: ${metadata?.projectName || 'Unknown'}
+                Location: ${metadata?.location || 'Unknown'}
+                Owner: ${metadata?.owner || 'Unknown'}
+                Time: ${new Date().toLocaleString()}
+                Reason: ${status.metadata?.reason || 'Unknown'}
+            </code>`
 
                 await this.telegram?.sendAlert(message, 'warning');
             }
@@ -291,6 +296,17 @@ Reason: ${status.metadata?.reason || 'Unknown'}
                 lastHeartbeat: status.timestamp,
                 status: 'offline'
             });
+
+            const remainingActiveClients    = Array.from(this.connectedClients.values()).filter(client => client.status === 'online');
+
+            if (remainingActiveClients.length === 0) {
+                await this.telegram?.sendAlert(`⚠️ System Alert
+                    <code>
+                        All clients are now offline
+                        Last Client: ${status.clientId}
+                        Time: ${new Date().toLocaleString()}
+                    </code>`, 'warning');
+            }
         }
     }
 
@@ -459,16 +475,16 @@ Reason: ${status.metadata?.reason || 'Unknown'}
 
         return `${emoji} <b>${alert.type}</b>
 
-<code>
-Message: ${alert.message}
-Project: ${alert.metadata.projectName}
-Location: ${alert.metadata.location}
-${alert.metadata.component ? `Component: ${alert.metadata.component}` : ''}
-${alert.metadata.clientId ? `Client ID: ${alert.metadata.clientId}` : ''}
-Time: ${new Date(alert.timestamp || Date.now()).toLocaleString()}
-</code>
+            <code>
+            Message: ${alert.message}
+            Project: ${alert.metadata.projectName}
+            Location: ${alert.metadata.location}
+            ${alert.metadata.component ? `Component: ${alert.metadata.component}` : ''}
+            ${alert.metadata.clientId ? `Client ID: ${alert.metadata.clientId}` : ''}
+            Time: ${new Date(alert.timestamp || Date.now()).toLocaleString()}
+            </code>
 
-${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(alert.metadata.additionalInfo, null, 2)}</code>` : ''}`;
+            ${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(alert.metadata.additionalInfo, null, 2)}</code>` : ''}`;
     }
 
     async shutdown(): Promise<void> {
@@ -480,5 +496,39 @@ ${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(al
         await this.telegram?.shutdown();
         this.connected = false;
         logger.info('Publisher service shut down complete');
+    }
+
+
+    private startClientMonitoring(): void {
+        const CHECK_INTERVAL    = 60000;
+
+        this.clientCheckInterval = setInterval(() => {
+            const activeClients     = Array.from(this.connectedClients.values()).filter(client => client.status === 'online')
+            
+            if (activeClients.length === 0) {
+                this.telegram?.sendAlert(`⚠️ System Warning
+                    <code>
+                    No active clients connected
+                    Time: ${new Date().toLocaleString()}
+                    Last Known Clients:
+                    ${this.getLastKnownClientsInfo()}
+                    </code>`, 'warning');
+            }
+        }, CHECK_INTERVAL)
+    }
+
+    private getLastKnownClientsInfo(): string {
+        if (this.connectedClients.size === 0) {
+            return 'No clients have connected yet';
+        }
+
+        return Array.from(this.connectedClients.entries())
+            .map(([clientId, client]) => {
+                return `- ${clientId} (${client.status})
+            Last Seen: ${new Date(client.lastHeartbeat).toLocaleString()}
+            Project: ${client.metadata?.projectName || 'Unknown'}
+            Location: ${client.metadata?.location || 'Unknown'}`;
+            })
+            .join('\n');
     }
 }

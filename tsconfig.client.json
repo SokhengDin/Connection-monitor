@@ -9,7 +9,10 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "baseUrl": "."
     },
     "include": [
         "src/client/**/*",
@@ -19,6 +22,7 @@
     ],
     "exclude": [
         "node_modules",
-        "src/server"
+        "src/server",
+        "dist"
     ]
 }

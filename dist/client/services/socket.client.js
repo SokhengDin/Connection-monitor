@@ -1,26 +1,21 @@
-import { io, Socket } from 'socket.io-client';
-import { SystemMetrics, ClientMetadata, Alert } from '../../types/connection.type';
-import { ClientToServerEvents, ServerToClientEvents } from '../../types/socket.types';
-import { logger } from '../../utils/logger';
-
-type AlertHandler = (alert: Alert) => void;
-type StatusHandler = (status: { connected: boolean; reason?: string }) => void;
-
-export class SocketClient {
-    private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
-    private reconnectAttempts: number = 0;
-    private readonly MAX_RECONNECT_ATTEMPTS = 5;
-    private alertHandlers: AlertHandler[] = [];
-    private statusHandlers: StatusHandler[] = [];
-
-    constructor(
-        private readonly clientId: string,
-        private readonly metadata: ClientMetadata
-    ) {}
-
-    connect(serverUrl: string = 'http://localhost:3000'): void {
-        this.socket = io(serverUrl, {
-            auth: { 
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SocketClient = void 0;
+const socket_io_client_1 = require("socket.io-client");
+const logger_1 = require("../../utils/logger");
+class SocketClient {
+    constructor(clientId, metadata) {
+        this.clientId = clientId;
+        this.metadata = metadata;
+        this.socket = null;
+        this.reconnectAttempts = 0;
+        this.MAX_RECONNECT_ATTEMPTS = 5;
+        this.alertHandlers = [];
+        this.statusHandlers = [];
+    }
+    connect(serverUrl = 'http://localhost:3000') {
+        this.socket = (0, socket_io_client_1.io)(serverUrl, {
+            auth: {
                 clientId: this.clientId,
                 metadata: this.metadata
             },
@@ -30,18 +25,15 @@ export class SocketClient {
             timeout: 10000,
             transports: ['websocket', 'polling']
         });
-
         this.setupSocketListeners();
     }
-
-    private setupSocketListeners(): void {
-        if (!this.socket) return;
-
+    setupSocketListeners() {
+        if (!this.socket)
+            return;
         this.socket.on('connect', () => {
-            logger.info('Connected to monitoring server');
+            logger_1.logger.info('Connected to monitoring server');
             this.reconnectAttempts = 0;
             this.notifyStatusHandlers(true);
-
             this.sendAlert({
                 type: 'CLIENT_CONNECTED',
                 message: 'Client connected to server',
@@ -49,11 +41,9 @@ export class SocketClient {
                 metadata: this.metadata
             });
         });
-
         this.socket.on('disconnect', (reason) => {
-            logger.warn(`Disconnected from server: ${reason}`);
+            logger_1.logger.warn(`Disconnected from server: ${reason}`);
             this.notifyStatusHandlers(false, reason);
-
             if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
                 this.sendAlert({
                     type: 'CLIENT_DISCONNECTED',
@@ -63,123 +53,116 @@ export class SocketClient {
                 });
             }
         });
-
         this.socket.on('connect_error', (error) => {
-            logger.error('Connection error:', error);
+            var _a;
+            logger_1.logger.error('Connection error:', error);
             this.reconnectAttempts++;
             this.notifyStatusHandlers(false, error.message);
-
             if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-                logger.error('Max reconnection attempts reached');
+                logger_1.logger.error('Max reconnection attempts reached');
                 this.sendAlert({
                     type: 'CONNECTION_FAILED',
                     message: 'Max reconnection attempts reached',
                     severity: 'error',
                     metadata: this.metadata
                 });
-                this.socket?.disconnect();
+                (_a = this.socket) === null || _a === void 0 ? void 0 : _a.disconnect();
             }
         });
-
         this.socket.on('heartbeat:ack', (data) => {
-            logger.debug('Received heartbeat acknowledgment:', data);
+            logger_1.logger.debug('Received heartbeat acknowledgment:', data);
         });
-
         this.socket.on('alert', (alert) => {
-            logger.warn(`Received alert: ${alert.type} - ${alert.message}`);
+            logger_1.logger.warn(`Received alert: ${alert.type} - ${alert.message}`);
             this.notifyAlertHandlers(alert);
         });
     }
-
-    sendHeartbeat(): void {
-        if (!this.socket?.connected) return;
-        this.socket.emit('heartbeat', { 
+    sendHeartbeat() {
+        var _a;
+        if (!((_a = this.socket) === null || _a === void 0 ? void 0 : _a.connected))
+            return;
+        this.socket.emit('heartbeat', {
             timestamp: Date.now(),
-            metadata: this.metadata 
+            metadata: this.metadata
         });
     }
-
-    sendMetrics(metrics: SystemMetrics): void {
-        if (!this.socket?.connected) return;
+    sendMetrics(metrics) {
+        var _a;
+        if (!((_a = this.socket) === null || _a === void 0 ? void 0 : _a.connected))
+            return;
         this.socket.emit('metrics', {
             ...metrics,
             clientId: this.clientId,
             metadata: this.metadata
         });
     }
-
-    async sendAlert(alert: Omit<Alert, 'timestamp'>): Promise<void> {
-        if (!this.socket?.connected) {
-            logger.warn('Cannot send alert: not connected to server');
+    async sendAlert(alert) {
+        var _a;
+        if (!((_a = this.socket) === null || _a === void 0 ? void 0 : _a.connected)) {
+            logger_1.logger.warn('Cannot send alert: not connected to server');
             return;
         }
-
         try {
             this.socket.emit('alert', {
                 ...alert,
                 timestamp: Date.now()
             });
-        } catch (error) {
-            logger.error('Failed to send alert:', error);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to send alert:', error);
             throw error;
         }
     }
-
-    onAlert(handler: AlertHandler): void {
+    onAlert(handler) {
         this.alertHandlers.push(handler);
     }
-
-    onConnectionStatus(handler: StatusHandler): void {
+    onConnectionStatus(handler) {
         this.statusHandlers.push(handler);
     }
-
-    private notifyAlertHandlers(alert: Alert): void {
+    notifyAlertHandlers(alert) {
         this.alertHandlers.forEach(handler => {
             try {
                 handler(alert);
-            } catch (error) {
-                logger.error('Error in alert handler:', error);
+            }
+            catch (error) {
+                logger_1.logger.error('Error in alert handler:', error);
             }
         });
     }
-
-    private notifyStatusHandlers(connected: boolean, reason?: string): void {
+    notifyStatusHandlers(connected, reason) {
         this.statusHandlers.forEach(handler => {
             try {
                 handler({ connected, reason });
-            } catch (error) {
-                logger.error('Error in status handler:', error);
+            }
+            catch (error) {
+                logger_1.logger.error('Error in status handler:', error);
             }
         });
     }
-
-    removeAlertHandler(handler: AlertHandler): void {
+    removeAlertHandler(handler) {
         this.alertHandlers = this.alertHandlers.filter(h => h !== handler);
     }
-
-    removeStatusHandler(handler: StatusHandler): void {
+    removeStatusHandler(handler) {
         this.statusHandlers = this.statusHandlers.filter(h => h !== handler);
     }
-
-    disconnect(): void {
+    disconnect() {
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;
         }
-
         this.alertHandlers = [];
         this.statusHandlers = [];
     }
-
-    isConnected(): boolean {
-        return this.socket?.connected ?? false;
+    isConnected() {
+        var _a, _b;
+        return (_b = (_a = this.socket) === null || _a === void 0 ? void 0 : _a.connected) !== null && _b !== void 0 ? _b : false;
     }
-
-    getClientId(): string {
+    getClientId() {
         return this.clientId;
     }
-
-    getMetadata(): ClientMetadata {
+    getMetadata() {
         return this.metadata;
     }
 }
+exports.SocketClient = SocketClient;
+//# sourceMappingURL=socket.client.js.map

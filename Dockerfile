@@ -5,9 +5,10 @@ WORKDIR /usr/src/app
 
 COPY package*.json ./
 
-RUN npm ci --only=production && \
-    npm uninstall electron && \
-    npm cache clean --force
+RUN npm install 
+
+RUN npm uninstall electron && \
+npm cache clean --force
 
 COPY . .
 

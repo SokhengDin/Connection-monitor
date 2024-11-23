@@ -1,4 +1,4 @@
-import { SystemMetrics } from "./connection.type";
+import { SystemMetrics, ClientMetadata } from "./connection.type";
 
 export interface ServerToClientEvents {
     'heartbeat:ack': (data: { timestamp: number }) => void;
@@ -11,7 +11,7 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-    heartbeat: () => void;
-    metrics: (data: SystemMetrics) => void;
+    heartbeat: (data: { metadata: ClientMetadata }) => void;
+    metrics: (data: SystemMetrics & { metadata: ClientMetadata }) => void;
     disconnect: () => void;
 }

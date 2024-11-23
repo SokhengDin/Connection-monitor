@@ -8,6 +8,8 @@
         "start:client": "electron .",
         "dev:server": "nodemon src/server/publisher.ts",
         "dev:client": "tsc && electron .",
+        "test:client": "ts-node src/test-client.ts",
+        "test:telegram": "ts-node src/test-telegram.ts",
         "build": "tsc",
         "watch": "tsc -w",
         "package": "electron-builder"
@@ -19,6 +21,7 @@
         "ioredis": "^5.3.2",
         "socket.io": "^4.7.4",
         "socket.io-client": "^4.8.1",
+        "telegraf": "^4.16.3",
         "uuid": "^11.0.3",
         "winston": "^3.11.0"
     },
@@ -33,20 +36,20 @@
         "appId": "com.connectionmonitor.app",
         "productName": "Connection Monitor",
         "directories": {
-        "output": "dist"
+            "output": "dist"
         },
         "files": [
-        "dist/**/*",
-        "package.json"
+            "dist/**/*",
+            "package.json"
         ],
         "win": {
-        "target": "nsis"
+            "target": "nsis"
         },
         "mac": {
-        "target": "dmg"
+            "target": "dmg"
         },
         "linux": {
-        "target": "AppImage"
+            "target": "AppImage"
         }
     }
 }

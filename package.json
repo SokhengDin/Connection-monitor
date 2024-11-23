@@ -12,7 +12,8 @@
         "clean": "rimraf dist",
         "prebuild": "npm run clean",
         "build:server": "tsc -p tsconfig.server.json",
-        "build:client": "tsc -p tsconfig.client.json"
+        "build:client": "tsc -p tsconfig.client.json",
+        "init-db": "ts-node src/scripts/init-db.ts"
     },
     "dependencies": {
         "@types/cors": "^2.8.17",

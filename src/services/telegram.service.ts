@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { logger } from '../utils/logger';
 import { SystemMetrics, ClientMetadata } from '../types/connection.type';
+import { PublisherService } from './publisher.service';
 
 export class TelegramService {
     private bot: Telegraf;
@@ -17,6 +18,10 @@ export class TelegramService {
             if (ctx.chat.id.toString() !== this.chatId) return;
             await ctx.reply('🟢 Monitoring system is active');
         });
+
+        this.bot.command('health', async (ctx) => {
+            if (ctx.chat.id.toString() !== this.chatId) return;
+        })
 
         this.bot.launch().catch(err => {
             logger.error('Failed to launch Telegram bot:', err);

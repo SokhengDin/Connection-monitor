@@ -18,6 +18,9 @@
         "src/services/**/*",
         "src/constants/**/*"
     ],
+    "copy": [
+        "src/migrations/*.sql"
+    ],
     "exclude": [
         "node_modules",
         "src/client"

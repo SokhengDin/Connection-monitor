@@ -33,7 +33,7 @@ export class PublisherService {
         this.subscriber     = new Redis(redisConfig);
         this.setupRedisListeners();
         this.setupSocketServer();
-        this.startHealthCheck();
+        // this.startHealthCheck();
         this.startClientMonitoring();
     }
 

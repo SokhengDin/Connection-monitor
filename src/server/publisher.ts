@@ -16,13 +16,13 @@ const app = express();
 const httpServer = createServer(app);
 
 app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(','),
+    origin: '*',
     methods: ['GET', 'POST']
 }));
 
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.ALLOWED_ORIGINS?.split(','),
+        origin: '*',
         methods: ['GET', 'POST']
     }
 });

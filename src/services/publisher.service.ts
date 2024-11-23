@@ -18,8 +18,8 @@ export class PublisherService {
     private publisher   : Redis;
     private subscriber  : Redis;
     private connected   : boolean = false;
+    private clientCheckInterval?: NodeJS.Timeout;
     private connectedClients = new Map<string, ConnectedClient>();
-    private clientCheckInterval: NodeJS.Timeout;
 
     constructor(
         private readonly redisConfig: { host: string; port: number; password?: string },

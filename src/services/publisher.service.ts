@@ -265,28 +265,26 @@ Status: ${client.status.toUpperCase()}
             });
 
             if (!client || client.status === 'offline') {
-                const message = `🟢 Client Connected
-            <code>
-                Client: ${status.clientId}
-                Project: ${metadata?.projectName || 'Unknown'}
-                Location: ${metadata?.location || 'Unknown'}
-                Owner: ${metadata?.owner || 'Unknown'}
-                Time: ${new Date().toLocaleString()}
-            </code>`;
-
-                await this.telegram?.sendAlert(message, 'info');
+                await this.telegram?.sendAlert(`🟢 Client Connected
+<code>
+Client: ${status.clientId}
+Project: ${metadata?.projectName || 'Unknown'}
+Location: ${metadata?.location || 'Unknown'}
+Owner: ${metadata?.owner || 'Unknown'}
+Time: ${new Date().toLocaleString()}
+</code>`, 'info');
             }
         } else {
             if (client?.status === 'online') {
                 const message = `🔴 Client Disconnected
-            <code>
-                Client: ${status.clientId}
-                Project: ${metadata?.projectName || 'Unknown'}
-                Location: ${metadata?.location || 'Unknown'}
-                Owner: ${metadata?.owner || 'Unknown'}
-                Time: ${new Date().toLocaleString()}
-                Reason: ${status.metadata?.reason || 'Unknown'}
-            </code>`
+<code>
+Client: ${status.clientId}
+Project: ${metadata?.projectName || 'Unknown'}
+Location: ${metadata?.location || 'Unknown'}
+Owner: ${metadata?.owner || 'Unknown'}
+Time: ${new Date().toLocaleString()}
+Reason: ${status.metadata?.reason || 'Unknown'}
+</code>`
 
                 await this.telegram?.sendAlert(message, 'warning');
             }
@@ -301,11 +299,11 @@ Status: ${client.status.toUpperCase()}
 
             if (remainingActiveClients.length === 0) {
                 await this.telegram?.sendAlert(`⚠️ System Alert
-                    <code>
-                        All clients are now offline
-                        Last Client: ${status.clientId}
-                        Time: ${new Date().toLocaleString()}
-                    </code>`, 'warning');
+<code>
+All clients are now offline
+Last Client: ${status.clientId}
+Time: ${new Date().toLocaleString()}
+</code>`, 'warning');
             }
         }
     }
@@ -475,16 +473,16 @@ Status: ${client.status.toUpperCase()}
 
         return `${emoji} <b>${alert.type}</b>
 
-            <code>
-            Message: ${alert.message}
-            Project: ${alert.metadata.projectName}
-            Location: ${alert.metadata.location}
-            ${alert.metadata.component ? `Component: ${alert.metadata.component}` : ''}
-            ${alert.metadata.clientId ? `Client ID: ${alert.metadata.clientId}` : ''}
-            Time: ${new Date(alert.timestamp || Date.now()).toLocaleString()}
-            </code>
+<code>
+Message: ${alert.message}
+Project: ${alert.metadata.projectName}
+Location: ${alert.metadata.location}
+${alert.metadata.component ? `Component: ${alert.metadata.component}` : ''}
+${alert.metadata.clientId ? `Client ID: ${alert.metadata.clientId}` : ''}
+Time: ${new Date(alert.timestamp || Date.now()).toLocaleString()}
+</code>
 
-            ${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(alert.metadata.additionalInfo, null, 2)}</code>` : ''}`;
+${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(alert.metadata.additionalInfo, null, 2)}</code>` : ''}`;
     }
 
     async shutdown(): Promise<void> {
@@ -525,9 +523,9 @@ Status: ${client.status.toUpperCase()}
         return Array.from(this.connectedClients.entries())
             .map(([clientId, client]) => {
                 return `- ${clientId} (${client.status})
-            Last Seen: ${new Date(client.lastHeartbeat).toLocaleString()}
-            Project: ${client.metadata?.projectName || 'Unknown'}
-            Location: ${client.metadata?.location || 'Unknown'}`;
+  Last Seen: ${new Date(client.lastHeartbeat).toLocaleString()}
+  Project: ${client.metadata?.projectName || 'Unknown'}
+  Location: ${client.metadata?.location || 'Unknown'}`;
             })
             .join('\n');
     }

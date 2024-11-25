@@ -153,35 +153,97 @@ export class PublisherService {
 
     private startClientMonitoring(): void {
         const CHECK_INTERVAL = 60000;
+        const OFFLINE_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
     
-        this.clientCheckInterval = setInterval(() => {
-            const activeClients = Array.from(this.connectedClients.values())
-                .filter(client => client.status === 'online');
-            
-            if (activeClients.length === 0) {
-                this.telegram?.sendAlert(`⚠️ System Warning
+        logger.info('Starting client monitoring service...');
+    
+        this.clientCheckInterval = setInterval(async () => {
+            try {
+                logger.debug('Checking client statuses...');
+    
+                // Get all unique client IDs from database
+                const [rows] = await this.database.pool.execute<mysql.RowDataPacket[]>(
+                    `SELECT DISTINCT client_id, project_name, location, last_seen 
+                     FROM connections 
+                     WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                     GROUP BY client_id`
+                );
+    
+                const activeClients = Array.from(this.connectedClients.values())
+                    .filter(client => client.status === 'online');
+    
+                logger.debug(`Found ${rows.length} registered clients and ${activeClients.length} active clients`);
+    
+                // Check each registered client
+                for (const row of rows) {
+                    const clientId = row.client_id;
+                    const isConnected = activeClients.some(client => client.clientId === clientId);
+                    const timeSinceLastSeen = Date.now() - row.last_seen;
+    
+                    logger.debug(`Checking client ${clientId}: isConnected=${isConnected}, timeSinceLastSeen=${timeSinceLastSeen}ms`);
+    
+                    if (!isConnected && timeSinceLastSeen > OFFLINE_THRESHOLD) {
+                        logger.warn(`Client ${clientId} (${row.project_name}) detected as offline. Last seen: ${new Date(row.last_seen).toLocaleString()}`);
+    
+                        // Record offline status in database
+                        await this.database.recordConnectionStatus(
+                            clientId,
+                            'offline',
+                            {
+                                projectName: row.project_name,
+                                location: row.location
+                            } as Partial<ClientMetadata>,
+                            'connection_lost'
+                        );
+    
+                        logger.info(`Recorded offline status for client ${clientId} in database`);
+    
+                        // Send alerts
+                        this.telegram?.sendAlert(`⚠️ System Warning
+    <code>
+    Client Disconnected
+    Client ID: ${clientId}
+    Project: ${row.project_name}
+    Location: ${row.location}
+    Last Seen: ${new Date(row.last_seen).toLocaleString()}
+    </code>`, 'warning');
+    
+                        // Send Khmer alert
+                        this.telegram?.sendKhmerDesktopDownAlert({
+                            projectName: row.project_name,
+                            location: row.location,
+                            lastHeartbeat: row.last_seen,
+                            reason: 'connection_lost'
+                        });
+    
+                        logger.info(`Sent alerts for offline client ${clientId}`);
+                    }
+                }
+    
+                // If no active clients at all
+                if (activeClients.length === 0) {
+                    logger.warn('No active clients connected');
+                    
+                    this.telegram?.sendAlert(`⚠️ System Warning
     <code>
     No active clients connected
     Time: ${new Date().toLocaleString()}
     Last Known Clients:
     ${this.getLastKnownClientsInfo()}
     </code>`, 'warning');
+                }
     
-                const lastClient = Array.from(this.connectedClients.entries())
-                    .sort(([_, a], [__, b]) => b.lastHeartbeat - a.lastHeartbeat)[0];
-    
-                if (lastClient && lastClient[1].metadata) {
-                    const clientData = {
-                        ...lastClient[1].metadata,
-                        lastHeartbeat: lastClient[1].lastHeartbeat,
-                        reason: 'no_active_clients'
-                    };
-                    this.telegram?.sendKhmerDesktopDownAlert(clientData);
+            } catch (error) {
+                logger.error('Error in client monitoring:', error);
+                if (error instanceof Error) {
+                    logger.error(`Stack trace: ${error.stack}`);
                 }
             }
         }, CHECK_INTERVAL);
-    }
     
+        logger.info(`Client monitoring started with ${CHECK_INTERVAL}ms interval`);
+    }
+
     private async handleClientOffline(clientId: string, client: ConnectedClient): Promise<void> {
         const metadata = {
             projectName: client.metadata?.projectName || 'Unknown',

@@ -150,28 +150,38 @@ export class PublisherService {
         });
     }
 
-    // private startHealthCheck(): void {
-    //     const CHECK_INTERVAL    = parseInt(process.env.HEALTH_CHECK_INTERVAL || '30000'); // 30 seconds
-    //     const OFFLINE_THRESHOLD = parseInt(process.env.OFFLINE_THRESHOLD || '60000'); // 1 minute
-    //     const REPORT_INTERVAL   = parseInt(process.env.REPORT_INTERVAL || '300000'); // 5 minutes
 
-    //     setInterval(async () => {
-    //         const now = Date.now();
-
-    //         for (const [clientId, client] of this.connectedClients.entries()) {
-    //             // Check if client is stale
-    //             if (client.status === 'online' && now - client.lastHeartbeat > OFFLINE_THRESHOLD) {
-    //                 await this.handleClientOffline(clientId, client);
-    //             }
-    //             if (client.status === 'online' && 
-    //                 client.metrics && 
-    //                 now - client.lastHeartbeat < OFFLINE_THRESHOLD) {
-    //                 await this.sendHealthReport(clientId, client);
-    //             }
-    //         }
-    //     }, CHECK_INTERVAL);
-    // }
-
+    private startClientMonitoring(): void {
+        const CHECK_INTERVAL = 60000;
+    
+        this.clientCheckInterval = setInterval(() => {
+            const activeClients = Array.from(this.connectedClients.values())
+                .filter(client => client.status === 'online');
+            
+            if (activeClients.length === 0) {
+                this.telegram?.sendAlert(`⚠️ System Warning
+    <code>
+    No active clients connected
+    Time: ${new Date().toLocaleString()}
+    Last Known Clients:
+    ${this.getLastKnownClientsInfo()}
+    </code>`, 'warning');
+    
+                const lastClient = Array.from(this.connectedClients.entries())
+                    .sort(([_, a], [__, b]) => b.lastHeartbeat - a.lastHeartbeat)[0];
+    
+                if (lastClient && lastClient[1].metadata) {
+                    const clientData = {
+                        ...lastClient[1].metadata,
+                        lastHeartbeat: lastClient[1].lastHeartbeat,
+                        reason: 'no_active_clients'
+                    };
+                    this.telegram?.sendKhmerDesktopDownAlert(clientData);
+                }
+            }
+        }, CHECK_INTERVAL);
+    }
+    
     private async handleClientOffline(clientId: string, client: ConnectedClient): Promise<void> {
         const metadata = {
             projectName: client.metadata?.projectName || 'Unknown',
@@ -533,37 +543,6 @@ ${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(al
         logger.info('Publisher service shut down complete');
     }
 
-
-    private startClientMonitoring(): void {
-        const CHECK_INTERVAL = 60000;
-    
-        this.clientCheckInterval = setInterval(() => {
-            const activeClients = Array.from(this.connectedClients.values())
-                .filter(client => client.status === 'online');
-            
-            if (activeClients.length === 0) {
-                this.telegram?.sendAlert(`⚠️ System Warning
-    <code>
-    No active clients connected
-    Time: ${new Date().toLocaleString()}
-    Last Known Clients:
-    ${this.getLastKnownClientsInfo()}
-    </code>`, 'warning');
-    
-                const lastClient = Array.from(this.connectedClients.entries())
-                    .sort(([_, a], [__, b]) => b.lastHeartbeat - a.lastHeartbeat)[0];
-    
-                if (lastClient && lastClient[1].metadata) {
-                    const clientData = {
-                        ...lastClient[1].metadata,
-                        lastHeartbeat: lastClient[1].lastHeartbeat,
-                        reason: 'no_active_clients'
-                    };
-                    this.telegram?.sendKhmerDesktopDownAlert(clientData);
-                }
-            }
-        }, CHECK_INTERVAL);
-    }
 
     private getLastKnownClientsInfo(): string {
         if (this.connectedClients.size === 0) {

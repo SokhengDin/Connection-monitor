@@ -323,7 +323,6 @@ Reason: ${status.metadata?.reason || 'Unknown'}
 </code>`
 
                 await this.telegram?.sendAlert(message, 'warning');
-                await this.telegram?.sendKhmerDesktopDownAlert(metadata);
             }
 
             this.connectedClients.set(status.clientId, {
@@ -536,21 +535,34 @@ ${alert.metadata.additionalInfo ? `\nAdditional Info:\n<code>${JSON.stringify(al
 
 
     private startClientMonitoring(): void {
-        const CHECK_INTERVAL    = 60000;
-
+        const CHECK_INTERVAL = 60000;
+    
         this.clientCheckInterval = setInterval(() => {
-            const activeClients     = Array.from(this.connectedClients.values()).filter(client => client.status === 'online')
+            const activeClients = Array.from(this.connectedClients.values())
+                .filter(client => client.status === 'online');
             
             if (activeClients.length === 0) {
                 this.telegram?.sendAlert(`⚠️ System Warning
-<code>
-No active clients connected
-Time: ${new Date().toLocaleString()}
-Last Known Clients:
-${this.getLastKnownClientsInfo()}
-</code>`, 'warning');
+    <code>
+    No active clients connected
+    Time: ${new Date().toLocaleString()}
+    Last Known Clients:
+    ${this.getLastKnownClientsInfo()}
+    </code>`, 'warning');
+    
+                const lastClient = Array.from(this.connectedClients.entries())
+                    .sort(([_, a], [__, b]) => b.lastHeartbeat - a.lastHeartbeat)[0];
+    
+                if (lastClient && lastClient[1].metadata) {
+                    const clientData = {
+                        ...lastClient[1].metadata,
+                        lastHeartbeat: lastClient[1].lastHeartbeat,
+                        reason: 'no_active_clients'
+                    };
+                    this.telegram?.sendKhmerDesktopDownAlert(clientData);
+                }
             }
-        }, CHECK_INTERVAL)
+        }, CHECK_INTERVAL);
     }
 
     private getLastKnownClientsInfo(): string {

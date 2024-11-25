@@ -195,10 +195,14 @@ export class DatabaseService {
 
     async getRegisteredClients(): Promise<RowDataPacket[]> {
         const [rows] = await this.pool.execute<RowDataPacket[]>(
-            `SELECT DISTINCT client_id, project_name, location, last_seen 
-            FROM connections 
-            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-            GROUP BY client_id`
+            `SELECT client_id, project_name, location, last_seen 
+             FROM connections
+             WHERE (client_id, created_at) IN (
+                 SELECT client_id, MAX(created_at)
+                 FROM connections
+                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                 GROUP BY client_id
+             )`
         );
         return rows;
     }

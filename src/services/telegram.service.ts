@@ -111,19 +111,19 @@ Report Time: ${new Date().toLocaleString()}
         }
     ): Promise<void> {
         const timestamp = new Date().toLocaleString();
-
+    
         const message = `
-🚨 <b>ការជូនដំណឹង</b>
-<code>
-កុំព្យូទ័រមានបញ្ហា សូមមេត្តាពិនិត្យមើល!
-
-អតិថិជន: ${metadata?.projectName || 'មិនស្គាល់'}
-ទីតាំង: ${metadata?.location || 'មិនស្គាល់'}
-ពេលវេលា: ${timestamp}
-</code>
-
-<b>សូមពិនិត្យមើលកុំព្យូទ័ររបស់អ្នកជាបន្ទាន់!</b>`;
-
+    🚨 <b>ការជូនដំណឹង</b>
+    <code>
+    កុំព្យូទ័រមានបញ្ហា សូមមេត្តាពិនិត្យមើល!
+    
+    អតិថិជន: ${metadata?.projectName || 'មិនស្គាល់'}
+    ទីតាំង: ${metadata?.location || 'មិនស្គាល់'}
+    ពេលវេលា: ${timestamp}
+    </code>
+    
+    <b>សូមពិនិត្យមើលកុំព្យូទ័ររបស់អ្នកជាបន្ទាន់!</b>`;
+    
         try {
             await this.bot.telegram.sendMessage(this.chatClientId, message, {
                 parse_mode: 'HTML'

@@ -160,19 +160,15 @@ export class PublisherService {
         this.clientCheckInterval = setInterval(async () => {
             try {
                 logger.debug('Checking client statuses...');
-    
-                // Use the new method instead of accessing pool directly
                 const rows = await this.database.getRegisteredClients();
     
                 const activeClients = Array.from(this.connectedClients.values())
                     .filter(client => client.status === 'online');
     
                 logger.debug(`Found ${rows.length} registered clients and ${activeClients.length} active clients`);
-    
-                // Check each registered client
                 for (const row of rows) {
                     const clientId = row.client_id;
-                    const isConnected = activeClients.some(client => client.id === clientId); // Changed clientId to id
+                    const isConnected = activeClients.some(client => client.id === clientId); 
                     const timeSinceLastSeen = Date.now() - row.last_seen;
     
                     logger.debug(`Checking client ${clientId}: isConnected=${isConnected}, timeSinceLastSeen=${timeSinceLastSeen}ms`);
@@ -180,15 +176,12 @@ export class PublisherService {
                     if (!isConnected && timeSinceLastSeen > OFFLINE_THRESHOLD) {
                         logger.warn(`Client ${clientId} (${row.project_name}) detected as offline. Last seen: ${new Date(row.last_seen).toLocaleString()}`);
     
-                        // Create metadata object with required fields
                         const metadata: ClientMetadata = {
                             projectName: row.project_name || 'Unknown',
                             location: row.location || 'Unknown',
-                            installedDate: new Date().toISOString(), // Add required fields
-                            owner: 'System'  // Add required fields
+                            installedDate: new Date().toISOString(),
+                            owner: 'System' 
                         };
-    
-                        // Record offline status in database
                         await this.database.recordConnectionStatus(
                             clientId,
                             'offline',
@@ -198,7 +191,7 @@ export class PublisherService {
     
                         logger.info(`Recorded offline status for client ${clientId} in database`);
     
-                        // Send alerts
+
                         this.telegram?.sendAlert(`⚠️ System Warning
     <code>
     Client Disconnected
@@ -208,7 +201,7 @@ export class PublisherService {
     Last Seen: ${new Date(row.last_seen).toLocaleString()}
     </code>`, 'warning');
     
-                        // Send Khmer alert
+    
                         this.telegram?.sendKhmerDesktopDownAlert({
                             projectName: row.project_name,
                             location: row.location,
@@ -219,8 +212,7 @@ export class PublisherService {
                         logger.info(`Sent alerts for offline client ${clientId}`);
                     }
                 }
-    
-                // If no active clients at all
+
                 if (activeClients.length === 0) {
                     logger.warn('No active clients connected');
                     

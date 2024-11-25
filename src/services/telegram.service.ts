@@ -113,7 +113,7 @@ Report Time: ${new Date().toLocaleString()}
         const timestamp = new Date().toLocaleString();
 
         const message = `
-🚨 <b>ការជូនដំណឹងអាសន្ន</b>
+🚨 <b>ការជូនដំណឹង</b>
 <code>
 កុំព្យូទ័រមានបញ្ហា សូមមេត្តាពិនិត្យមើល!
 

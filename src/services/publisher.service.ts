@@ -8,6 +8,7 @@ import { DatabaseService } from './database.service';
 import { logger } from "../utils/logger";
 
 interface ConnectedClient {
+    id?             : string;
     lastHeartbeat   : number;
     lastReport?     : number;
     status          : 'online' | 'offline';
@@ -160,13 +161,8 @@ export class PublisherService {
             try {
                 logger.debug('Checking client statuses...');
     
-                // Get all unique client IDs from database
-                const [rows] = await this.database.pool.execute<mysql.RowDataPacket[]>(
-                    `SELECT DISTINCT client_id, project_name, location, last_seen 
-                     FROM connections 
-                     WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-                     GROUP BY client_id`
-                );
+                // Use the new method instead of accessing pool directly
+                const rows = await this.database.getRegisteredClients();
     
                 const activeClients = Array.from(this.connectedClients.values())
                     .filter(client => client.status === 'online');
@@ -176,7 +172,7 @@ export class PublisherService {
                 // Check each registered client
                 for (const row of rows) {
                     const clientId = row.client_id;
-                    const isConnected = activeClients.some(client => client.clientId === clientId);
+                    const isConnected = activeClients.some(client => client.id === clientId); // Changed clientId to id
                     const timeSinceLastSeen = Date.now() - row.last_seen;
     
                     logger.debug(`Checking client ${clientId}: isConnected=${isConnected}, timeSinceLastSeen=${timeSinceLastSeen}ms`);
@@ -184,14 +180,19 @@ export class PublisherService {
                     if (!isConnected && timeSinceLastSeen > OFFLINE_THRESHOLD) {
                         logger.warn(`Client ${clientId} (${row.project_name}) detected as offline. Last seen: ${new Date(row.last_seen).toLocaleString()}`);
     
+                        // Create metadata object with required fields
+                        const metadata: ClientMetadata = {
+                            projectName: row.project_name || 'Unknown',
+                            location: row.location || 'Unknown',
+                            installedDate: new Date().toISOString(), // Add required fields
+                            owner: 'System'  // Add required fields
+                        };
+    
                         // Record offline status in database
                         await this.database.recordConnectionStatus(
                             clientId,
                             'offline',
-                            {
-                                projectName: row.project_name,
-                                location: row.location
-                            } as Partial<ClientMetadata>,
+                            metadata,
                             'connection_lost'
                         );
     

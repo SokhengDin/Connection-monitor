@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import { Pool, RowDataPacket } from 'mysql2/promise';
 import { ClientMetadata } from '../types/connection.type';
 import { logger } from '../utils/logger';
 
@@ -190,6 +191,16 @@ export class DatabaseService {
                 lastSeen: null
             };
         }
+    }
+
+    async getRegisteredClients(): Promise<RowDataPacket[]> {
+        const [rows] = await this.pool.execute<RowDataPacket[]>(
+            `SELECT DISTINCT client_id, project_name, location, last_seen 
+            FROM connections 
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY client_id`
+        );
+        return rows;
     }
 
     async shutdown(): Promise<void> {

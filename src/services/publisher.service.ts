@@ -193,13 +193,13 @@ export class PublisherService {
     
 
                         this.telegram?.sendAlert(`⚠️ System Warning
-    <code>
-    Client Disconnected
-    Client ID: ${clientId}
-    Project: ${row.project_name}
-    Location: ${row.location}
-    Last Seen: ${new Date(row.last_seen).toLocaleString()}
-    </code>`, 'warning');
+<code>
+Client Disconnected
+Client ID: ${clientId}
+Project: ${row.project_name}
+Location: ${row.location}
+Last Seen: ${new Date(row.last_seen).toLocaleString()}
+</code>`, 'warning');
     
     
                         this.telegram?.sendKhmerDesktopDownAlert({
@@ -217,12 +217,12 @@ export class PublisherService {
                     logger.warn('No active clients connected');
                     
                     this.telegram?.sendAlert(`⚠️ System Warning
-    <code>
-    No active clients connected
-    Time: ${new Date().toLocaleString()}
-    Last Known Clients:
-    ${this.getLastKnownClientsInfo()}
-    </code>`, 'warning');
+<code>
+No active clients connected
+Time: ${new Date().toLocaleString()}
+Last Known Clients:
+${this.getLastKnownClientsInfo()}
+</code>`, 'warning');
                 }
     
             } catch (error) {

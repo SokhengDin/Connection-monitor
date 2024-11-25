@@ -150,7 +150,6 @@ export class PublisherService {
         });
     }
 
-
     private startClientMonitoring(): void {
         const CHECK_INTERVAL = 60000;
         const OFFLINE_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -243,7 +242,7 @@ export class PublisherService {
     
         logger.info(`Client monitoring started with ${CHECK_INTERVAL}ms interval`);
     }
-
+    
     private async handleClientOffline(clientId: string, client: ConnectedClient): Promise<void> {
         const metadata = {
             projectName: client.metadata?.projectName || 'Unknown',

@@ -323,6 +323,7 @@ Reason: ${status.metadata?.reason || 'Unknown'}
 </code>`
 
                 await this.telegram?.sendAlert(message, 'warning');
+                await this.telegram?.sendKhmerDesktopDownAlert(metadata);
             }
 
             this.connectedClients.set(status.clientId, {

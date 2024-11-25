@@ -29,10 +29,11 @@ const io = new Server(httpServer, {
 
 app.use(express.json());
 
-const telegramService = process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID
+const telegramService = process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID && process.env.TELEGRAM_CHAT_CLIENT_ID
     ? new TelegramService(
-        process.env.TELEGRAM_BOT_TOKEN,
-        process.env.TELEGRAM_CHAT_ID
+        process.env.TELEGRAM_BOT_TOKEN
+        , process.env.TELEGRAM_CHAT_ID
+        , process.env.TELEGRAM_CHAT_CLIENT_ID
     )
     : undefined;
 

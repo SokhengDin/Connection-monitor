@@ -6,10 +6,12 @@ import { PublisherService } from './publisher.service';
 export class TelegramService {
     private bot: Telegraf;
     private chatId: string;
+    private chatClientId: string;
 
-    constructor(token: string, chatId: string) {
+    constructor(token: string, chatId: string, chatClientId: string) {
         this.bot = new Telegraf(token);
         this.chatId = chatId;
+        this.chatClientId = chatClientId;
         this.setupBot();
     }
 
@@ -100,6 +102,37 @@ Report Time: ${new Date().toLocaleString()}
 </code>`;
 
         await this.sendAlert(message, 'info');
+    }
+
+    async sendKhmerDesktopDownAlert(
+        metadata?: Partial<ClientMetadata> & { 
+            reason?: string; 
+            lastHeartbeat?: number;
+        }
+    ): Promise<void> {
+        const timestamp = new Date().toLocaleString();
+
+        const message = `
+🚨 <b>ការជូនដំណឹងអាសន្ន</b>
+<code>
+កុំព្យូទ័រមានបញ្ហា សូមមេត្តាពិនិត្យមើល!
+
+អតិថិជន: ${metadata?.projectName || 'មិនស្គាល់'}
+ទីតាំង: ${metadata?.location || 'មិនស្គាល់'}
+ពេលវេលា: ${timestamp}
+</code>
+
+<b>សូមពិនិត្យមើលកុំព្យូទ័ររបស់អ្នកជាបន្ទាន់!</b>`;
+
+        try {
+            await this.bot.telegram.sendMessage(this.chatClientId, message, {
+                parse_mode: 'HTML'
+            });
+            
+            await this.sendAlert(`Desktop down alert sent to client (${metadata?.projectName || 'Unknown'})`, 'error');
+        } catch (error) {
+            logger.error('Failed to send Khmer desktop down alert:', error);
+        }
     }
 
     async shutdown(): Promise<void> {

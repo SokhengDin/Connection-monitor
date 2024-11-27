@@ -76,7 +76,7 @@ export class PublisherService {
     }
 
     private setupSocketServer(): void {
-        this.io.on('connection', (socket) => {
+        this.io.on('connection', async (socket) => {
             const clientId = socket.handshake.auth.clientId;
             const metadata = socket.handshake.auth.metadata as ClientMetadata;
 
@@ -84,6 +84,19 @@ export class PublisherService {
                 logger.warn('Client attempted connection without clientId');
                 socket.disconnect();
                 return;
+            }
+
+            // Check existing clientid
+            const existingClient    = await this.database.getLastConnectionStatus(clientId);
+            if (existingClient) {
+                await this.telegram?.sendAlert(`🔄 Existing Client Reconnected
+<code>
+Client ID: ${clientId}
+Project: ${metadata.projectName}
+Location: ${metadata.location}
+Previous Status: ${existingClient.status}
+Last Seen: ${new Date(existingClient.last_seen).toLocaleString()}
+</code>`, 'info');
             }
 
             logger.info(`Client connected: ${clientId}`);

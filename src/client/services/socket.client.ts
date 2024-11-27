@@ -8,10 +8,14 @@ type StatusHandler = (status: { connected: boolean; reason?: string }) => void;
 
 export class SocketClient {
     private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
-    private reconnectAttempts: number = 0;
+    private reconnectAttempts: number       = 0;
+    private reconnectTimer?: NodeJS.Timeout;
     private readonly MAX_RECONNECT_ATTEMPTS = 5;
-    private alertHandlers: AlertHandler[] = [];
+    private readonly RECONNECT_INTERVAL     = 5000;
+    private readonly MAX_RECONNECT_INTERVAL = 30000;
+    private alertHandlers: AlertHandler[]   = [];
     private statusHandlers: StatusHandler[] = [];
+    private isReconnecting                  = false;
 
     constructor(
         private readonly clientId: string,
@@ -19,6 +23,8 @@ export class SocketClient {
     ) {}
 
     connect(serverUrl: string = 'http://localhost:3000'): void {
+        if (this.socket?.connected || this.isReconnecting) return;  
+
         this.socket = io(serverUrl, {
             auth: { 
                 clientId: this.clientId,
@@ -34,52 +40,44 @@ export class SocketClient {
         this.setupSocketListeners();
     }
 
+    private getReconnectDelay(): number {
+        return Math.min(this.RECONNECT_INTERVAL * Math.pow(2, this.reconnectAttempts), this.MAX_RECONNECT_INTERVAL);
+    }
+
     private setupSocketListeners(): void {
         if (!this.socket) return;
 
         this.socket.on('connect', () => {
             logger.info('Connected to monitoring server');
-            this.reconnectAttempts = 0;
+            this.reconnectAttempts  = 0;
+            this.isReconnecting     = false;
+            if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
             this.notifyStatusHandlers(true);
-
-            this.sendAlert({
-                type: 'CLIENT_CONNECTED',
-                message: 'Client connected to server',
-                severity: 'info',
-                metadata: this.metadata
-            });
+            this.sendReconnectionAlert('CLIENT_CONNECTED', 'info');
         });
 
         this.socket.on('disconnect', (reason) => {
             logger.warn(`Disconnected from server: ${reason}`);
             this.notifyStatusHandlers(false, reason);
-
-            if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
-                this.sendAlert({
-                    type: 'CLIENT_DISCONNECTED',
-                    message: `Client disconnected: ${reason}`,
-                    severity: 'warning',
-                    metadata: this.metadata
-                });
-            }
+            this.handleReconnection(reason);
         });
 
         this.socket.on('connect_error', (error) => {
             logger.error('Connection error:', error);
-            this.reconnectAttempts++;
             this.notifyStatusHandlers(false, error.message);
-
-            if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-                logger.error('Max reconnection attempts reached');
-                this.sendAlert({
-                    type: 'CONNECTION_FAILED',
-                    message: 'Max reconnection attempts reached',
-                    severity: 'error',
-                    metadata: this.metadata
-                });
-                this.socket?.disconnect();
-            }
+            this.handleReconnection(error.message);
         });
+
+        this.socket.io.on('reconnect_failed', () => {
+            logger.error('Reconnection failed');
+            this.isReconnecting = false;
+            this.sendReconnectionAlert('RECONNECTION_FAILED', 'error');
+        })
+
+        this.socket.io.on('reconnect_attempt', (attempt) => {
+            logger.info(`Reconnection attempt ${attempt}`);
+            this.sendReconnectionAlert('RECONNECTING', 'warning');
+        })
 
         this.socket.on('heartbeat:ack', (data) => {
             logger.debug('Received heartbeat acknowledgment:', data);
@@ -88,6 +86,35 @@ export class SocketClient {
         this.socket.on('alert', (alert) => {
             logger.warn(`Received alert: ${alert.type} - ${alert.message}`);
             this.notifyAlertHandlers(alert);
+        });
+    }
+
+    private handleReconnection(reason: string): void {
+        if (this.isReconnecting || this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) return;
+
+        this.isReconnecting     = true;
+        this.reconnectAttempts ++;
+
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+
+        this.reconnectTimer = setTimeout(() => {
+            logger.info(`Attempting to reconnect (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
+            this.connect();
+        }, this.getReconnectDelay());
+    }
+
+    private sendReconnectionAlert(type: string, severity: Alert['severity']): void {
+        this.sendAlert({
+            type
+            , message: `Client ${type.toLowerCase()} (Attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`
+            , severity
+            , metadata: {
+                ...this.metadata
+                , additionalInfo: {
+                    reconnectAttempts: this.reconnectAttempts
+                    , maxAttempts: this.MAX_RECONNECT_ATTEMPTS
+                }
+            }
         });
     }
 
@@ -162,6 +189,10 @@ export class SocketClient {
     }
 
     disconnect(): void {
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        
+        this.isReconnecting = false;
+
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;

@@ -28,6 +28,10 @@ interface ConnectionRecord {
     created_at: Date;
 }
 
+interface LastAlertTimes {
+    [key: string]: Date;
+}
+
 export class PublisherService {
     private publisher   : Redis;
     private subscriber  : Redis;
@@ -35,6 +39,14 @@ export class PublisherService {
     private clientCheckInterval?: NodeJS.Timeout;
     private connectedClients = new Map<string, ConnectedClient>();
     private database: DatabaseService;
+    private lastAlertTimes = new Map<string, Date>();
+    private formatDuration(ms: number): string {
+        const minutes = Math.floor(ms / 60000);
+        const hours = Math.floor(minutes / 60);
+        return hours > 0 ? 
+            `${hours}h ${minutes % 60}m` : 
+            `${minutes}m`;
+    }
 
     constructor(
         private readonly redisConfig: { host: string; port: number; password?: string },
@@ -238,41 +250,48 @@ ${this.getLastKnownClientsInfo()}
     }
     
     private async handleClientOffline(client: ConnectionRecord): Promise<void> {
-        logger.warn(`Client ${client.client_id} (${client.project_name}) detected as offline. Last seen: ${new Date(client.last_seen).toLocaleString()}`);
+        const currentTime = new Date();
+        const lastAlertKey = `last_alert_${client.client_id}`;
+        const lastAlert = this.lastAlertTimes.get(lastAlertKey);
+        const ALERT_INTERVAL = 5 * 60 * 1000;
+
+        if (!lastAlert || (currentTime.getTime() - lastAlert.getTime()) >= ALERT_INTERVAL) {
+            logger.warn(`Client ${client.client_id} (${client.project_name}) detected as offline. Last seen: ${new Date(client.last_seen).toLocaleString()}`);
     
-        const metadata: ClientMetadata = {
-            projectName: client.project_name || 'Unknown',
-            location: client.location || 'Unknown',
-            installedDate: new Date().toISOString(),
-            owner: 'System'
-        };
-        
-        await this.database.recordConnectionStatus(
-            client.client_id,
-            'offline',
-            metadata,
-            'connection_lost'
-        );
+            const metadata: ClientMetadata = {
+                projectName: client.project_name || 'Unknown',
+                location: client.location || 'Unknown',
+                installedDate: new Date().toISOString(),
+                owner: 'System'
+            };
+            
+            await this.database.recordConnectionStatus(
+                client.client_id,
+                'offline',
+                metadata,
+                'connection_lost'
+            );
     
-        logger.info(`Recorded offline status for client ${client.client_id} in database`);
-    
-        await this.telegram?.sendAlert(`⚠️ System Warning
+            await this.telegram?.sendAlert(`⚠️ System Warning
 <code>
 Client Disconnected
 Client ID: ${client.client_id}
 Project: ${client.project_name}
 Location: ${client.location}
 Last Seen: ${new Date(client.last_seen).toLocaleString()}
+Duration: ${this.formatDuration(currentTime.getTime() - client.last_seen)}
 </code>`, 'warning');
     
-        await this.telegram?.sendKhmerDesktopDownAlert({
-            projectName: client.project_name,
-            location: client.location,
-            lastHeartbeat: client.last_seen,
-            reason: 'connection_lost'
-        });
+            await this.telegram?.sendKhmerDesktopDownAlert({
+                projectName: client.project_name,
+                location: client.location,
+                lastHeartbeat: client.last_seen,
+                reason: 'connection_lost'
+            });
     
-        logger.info(`Sent alerts for offline client ${client.client_id}`);
+            this.lastAlertTimes.set(lastAlertKey, currentTime);
+            logger.info(`Sent alerts for offline client ${client.client_id}`);
+        }
     }
 
     private async handleHighCpuUsage(clientId: string, client: ConnectedClient, cpuUsage: number): Promise<void> {

@@ -2,7 +2,7 @@ export interface ClientMetadata {
     projectName    : string;
     location      : string;
     installedDate : string;
-    owner         : string;
+    owner?         : string;
     hostname?     : string;
     ip?           : string;
     version?      : string;

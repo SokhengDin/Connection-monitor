@@ -207,6 +207,26 @@ export class DatabaseService {
         return rows;
     }
 
+    async getOfflineClients(): Promise<ConnectionRecord[]> {
+        try {
+            const [rows] = await this.pool.execute<mysql.RowDataPacket[]>(`
+                SELECT c1.*
+                FROM connections c1
+                INNER JOIN (
+                    SELECT client_id, MAX(created_at) as max_created
+                    FROM connections
+                    GROUP BY client_id
+                ) c2 ON c1.client_id = c2.client_id 
+                    AND c1.created_at = c2.max_created
+                WHERE c1.status = 'offline'
+            `);
+            return rows as ConnectionRecord[];
+        } catch (error) {
+            logger.error('Error getting offline clients:', error);
+            return [];
+        }
+    }
+
     async shutdown(): Promise<void> {
         try {
             await this.pool.end();

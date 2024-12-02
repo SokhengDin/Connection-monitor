@@ -59,7 +59,16 @@ export class SocketClient {
         this.socket.on('disconnect', (reason) => {
             logger.warn(`Disconnected from server: ${reason}`);
             this.notifyStatusHandlers(false, reason);
+
+            if (reason === 'io server disconnect' || reason === 'transport close') {
+                this.socket?.connect();
+            }
+
             this.handleReconnection(reason);
+        });
+
+        this.socket.io.on('reconnect_error', (error) => {
+            logger.error('Reconnection error:', error);
         });
 
         this.socket.on('connect_error', (error) => {
@@ -90,17 +99,24 @@ export class SocketClient {
     }
 
     private handleReconnection(reason: string): void {
-        if (this.isReconnecting || this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) return;
-
-        this.isReconnecting     = true;
-        this.reconnectAttempts ++;
-
+        if (this.isReconnecting || this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+            return;
+        }
+    
+        this.isReconnecting = true;
+        this.reconnectAttempts++;
+    
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-
+    
+        const delay = this.getReconnectDelay();
+        logger.info(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+    
         this.reconnectTimer = setTimeout(() => {
-            logger.info(`Attempting to reconnect (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
-            this.connect();
-        }, this.getReconnectDelay());
+            if (!this.socket?.connected) {
+                logger.info(`Attempting to reconnect (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
+                this.socket?.connect();
+            }
+        }, delay);
     }
 
     private sendReconnectionAlert(type: string, severity: Alert['severity']): void {

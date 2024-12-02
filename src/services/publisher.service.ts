@@ -215,7 +215,12 @@ Last Seen: ${new Date(existingClient.last_seen).toLocaleString()}
                     logger.debug(`Checking client ${clientId}: isConnected=${isConnected}, timeSinceLastSeen=${timeSinceLastSeen}ms`);
     
                     if (!isConnected && timeSinceLastSeen > OFFLINE_THRESHOLD) {
-                        await this.handleClientOffline(row as ConnectionRecord);
+                        const connectedClient = this.connectedClients.get(clientId);
+                        if (!connectedClient || 
+                            connectedClient.status !== 'online' || 
+                            Date.now() - connectedClient.lastHeartbeat > OFFLINE_THRESHOLD) {
+                            await this.handleClientOffline(row as ConnectionRecord);
+                        }
                     }
                 }
     
@@ -250,6 +255,12 @@ ${this.getLastKnownClientsInfo()}
     }
     
     private async handleClientOffline(client: ConnectionRecord): Promise<void> {
+
+        const connectedClient = this.connectedClients.get(client.client_id);
+        if (connectedClient?.status === 'online' && Date.now() - connectedClient.lastHeartbeat < 5 * 60 * 1000) {
+            return ; 
+        }
+
         const currentTime = new Date();
         const lastAlertKey = `last_alert_${client.client_id}`;
         const lastAlert = this.lastAlertTimes.get(lastAlertKey);

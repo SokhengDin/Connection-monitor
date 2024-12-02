@@ -57,7 +57,7 @@ export class TelegramService {
             
             const clientId = ctx.message.text.split(' ')[1];
             if (!clientId) {
-                await ctx.reply('❌ Please provide a client ID\nExample: /health alpr-bppt-client');
+                await ctx.reply('❌ Please provide a client ID\nExample: /health [client_id]');
                 return;
             }
     

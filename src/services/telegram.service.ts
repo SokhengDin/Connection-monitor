@@ -1,7 +1,8 @@
 import { Telegraf } from 'telegraf';
 import { logger } from '../utils/logger';
 import { SystemMetrics, ClientMetadata } from '../types/connection.type';
-import { PublisherService } from './publisher.service';
+import { DatabaseService } from './database.service';
+
 
 export class TelegramService {
     private bot: Telegraf;
@@ -15,10 +16,83 @@ export class TelegramService {
         this.setupBot();
     }
 
+    private formatDuration(seconds: number): string {
+        const hours     = Math.floor(seconds / 3600);
+        const minutes   = Math.floor((seconds % 3600) / 60);
+        return hours    > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    }
+
     private setupBot() {
         this.bot.command('status', async (ctx) => {
             if (ctx.chat.id.toString() !== this.chatId) return;
             await ctx.reply('🟢 Monitoring system is active');
+        });
+
+        this.bot.command('clients', async (ctx) => {
+            if (ctx.chat.id.toString() !== this.chatId) return ;
+            try {
+                const db        = new DatabaseService();
+                const clients   = await db.getRegisteredClients();
+
+                if (!clients.length) {
+                    await ctx.reply('No clients registered in the last 24 hours');
+                    return;
+                }
+
+                const message   = clients.map(client => 
+                    `- ${client.client_id}\n  ${client.project_name} (${client.location})\n  Last seen: ${new Date(client.last_seen).toLocaleString()}`
+                ).join('\n\n');
+
+                await ctx.reply(`📊 Registered Clients:\n\n${message}`);
+                await db.shutdown();
+            }
+            catch (error) {
+                await ctx.reply('❌ Error fetching clients');
+                logger.error('Error fetching clients:', error);
+            }
+        });
+
+        this.bot.command('health', async (ctx) => {
+            if (ctx.chat.id.toString() !== this.chatId) return;
+            
+            const clientId = ctx.message.text.split(' ')[1];
+            if (!clientId) {
+                await ctx.reply('❌ Please provide a client ID\nExample: /health alpr-bppt-client');
+                return;
+            }
+    
+            try {
+                const db = new DatabaseService();
+                const [status, stats] = await Promise.all([
+                    db.getLastConnectionStatus(clientId),
+                    db.getClientStats(clientId)
+                ]);
+    
+                if (!status) {
+                    await ctx.reply(`❌ No client found with ID: ${clientId}`);
+                    return;
+                }
+    
+                const message = `📊 Client Health Report
+    <code>
+    Client ID: ${clientId}
+    Project: ${status.project_name}
+    Location: ${status.location}
+    Status: ${status.status.toUpperCase()}
+    Last Seen: ${new Date(status.last_seen).toLocaleString()}
+    
+    Statistics:
+    - Total Connections: ${stats.totalConnections}
+    - Total Downtime: ${this.formatDuration(stats.totalDowntime)}
+    - Avg Downtime: ${this.formatDuration(stats.avgDowntime)}
+    </code>`;
+    
+                await ctx.reply(message, { parse_mode: 'HTML' });
+                await db.shutdown();
+            } catch (error) {
+                await ctx.reply('❌ Error fetching client health');
+                logger.error('Error fetching client health:', error);
+            }
         });
 
         this.bot.command('health', async (ctx) => {

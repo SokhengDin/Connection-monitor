@@ -40,6 +40,11 @@ export class SocketClient {
         this.setupSocketListeners();
     }
 
+    private resetConnection(): void {
+        this.disconnect();
+        setTimeout(() => this.connect(), 1000);
+    }
+
     private getReconnectDelay(): number {
         return Math.min(this.RECONNECT_INTERVAL * Math.pow(2, this.reconnectAttempts), this.MAX_RECONNECT_INTERVAL);
     }
@@ -60,15 +65,21 @@ export class SocketClient {
             logger.warn(`Disconnected from server: ${reason}`);
             this.notifyStatusHandlers(false, reason);
 
-            if (reason === 'io server disconnect' || reason === 'transport close') {
-                this.socket?.connect();
+            if (reason === 'io client disconnect') return;
+
+            if (reason === 'io server disconnect') {
+                setTimeout(() => this.socket?.connect(), 1000);
+                return;
             }
 
             this.handleReconnection(reason);
-        });
+        })
 
         this.socket.io.on('reconnect_error', (error) => {
             logger.error('Reconnection error:', error);
+            if (error.message === 'websocket error') {
+                this.resetConnection();
+            }
         });
 
         this.socket.on('connect_error', (error) => {
@@ -99,23 +110,26 @@ export class SocketClient {
     }
 
     private handleReconnection(reason: string): void {
-        if (this.isReconnecting || this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-            return;
-        }
-    
+        if (this.isReconnecting) return;
+        
         this.isReconnecting = true;
-        this.reconnectAttempts++;
-    
+        const delay         = this.getReconnectDelay();
+        
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    
-        const delay = this.getReconnectDelay();
-        logger.info(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
-    
+        
         this.reconnectTimer = setTimeout(() => {
             if (!this.socket?.connected) {
+                this.reconnectAttempts++;
                 logger.info(`Attempting to reconnect (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
+                
+                if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+                    this.resetConnection();
+                    return;
+                }
+                
                 this.socket?.connect();
             }
+            this.isReconnecting = false;
         }, delay);
     }
 
